@@ -40,7 +40,7 @@ int main(int argc, char *argv[]){
         }
         
     }
-    printf("Result: \n")
+    printf("Result: \n");
     dispmatrix(result);
     return 0;
 };

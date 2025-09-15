@@ -10,7 +10,8 @@
 #define PIPE  3
 #define LIST  4
 #define BACK  5
-
+#define HISTORY_SIZE 10
+#define CMD_BUF_SIZE 100
 #define MAXARGS 10
 
 struct cmd {
@@ -53,6 +54,38 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 void runcmd(struct cmd*) __attribute__((noreturn));
+#define HISTORY_SIZE 10
+#define CMD_MAX 128
+
+char history[HISTORY_SIZE][CMD_MAX];
+int history_count = 0;
+int history_index = 0;
+// Simple strncpy substitute (xv6 doesn't have one)
+void copystring(char *dst, const char *src, int n) {
+  while(n-- > 0 && *src)
+    *dst++ = *src++;
+  *dst = '\0';
+}
+// Store a command in history
+void addCommand(const char *cmd) {
+    copystring(history[history_count % HISTORY_SIZE], cmd, CMD_MAX);
+    history_count++;
+}
+
+// Get previous command
+char* get_history() {
+    if (history_count == 0)
+        return 0;
+    history_index--;
+    if (history_index < 0)
+        history_index = 0;
+    return history[history_index % HISTORY_SIZE];
+}
+
+// Reset index when new command is typed
+void reset() {
+    history_index = history_count;
+}
 
 // Execute cmd.  Never returns.
 void
@@ -131,21 +164,54 @@ runcmd(struct cmd *cmd)
   exit(0);
 }
 
-int
-getcmd(char *buf, int nbuf)
-{
-  write(2, "$ ", 2);
-  memset(buf, 0, nbuf);
-  gets(buf, nbuf);
-  if(buf[0] == 0) // EOF
-    return -1;
-  return 0;
+
+int getcmd(char *buf, int nbuf) {
+  printf("$ ");
+  int i = 0;
+  reset();
+
+  while (1) {
+    char c;
+    if (read(0, &c, 1) < 1)
+      return -1;
+
+    if (c == '\n') {
+      buf[i] = '\0';
+      printf("\n");
+      return 0;
+    } else if (c == '@') { // go back
+      char *prev = get_history();
+      if (prev) {
+        // Clear current line
+        while (i > 0) {
+          write(1, "\b \b", 3);
+          i--;
+        }
+        // Copy and show previous command
+        copystring(buf, prev, nbuf - 1);
+        i = strlen(buf);
+        write(1, buf, i);
+      }
+    } else if (c == 127 || c == '\b') { // backspace
+      if (i > 0) {
+        i--;
+        write(1, "\b \b", 3);
+      }
+    } else {
+      if (i+1 < nbuf) {
+        buf[i++] = c;
+        write(1, &c, 1);
+      }
+    }
+  }
 }
+
+
 
 int
 main(void)
 {
-  static char buf[100];
+  static char buf[CMD_BUF_SIZE];
   int fd;
 
   // Ensure that three file descriptors are open.
@@ -161,21 +227,24 @@ main(void)
     char *cmd = buf;
     while (*cmd == ' ' || *cmd == '\t')
       cmd++;
-    if (*cmd == '\n') // is a blank command
+    if (*cmd == '\0') // blank command
       continue;
+
+    addCommand(cmd); // Save to history
+
     if(cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' '){
-      // Chdir must be called by the parent, not the child.
       cmd[strlen(cmd)-1] = 0;  // chop \n
       if(chdir(cmd+3) < 0)
         fprintf(2, "cannot cd %s\n", cmd+3);
     } else {
-      if(fork1() == 0)
+      if(fork() == 0)
         runcmd(parsecmd(cmd));
       wait(0);
     }
   }
   exit(0);
 }
+
 
 void
 panic(char *s)
