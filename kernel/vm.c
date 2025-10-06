@@ -336,7 +336,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   a = PGROUNDUP(oldsz);
   for(; a < newsz;){
     // Check for superpage opportunity
-    if((a % S_PGSIZE) == 0 && (a + S_PGSIZE <= newsz) /*&& 0 to test without super pages*/){
+    if((a % S_PGSIZE) == 0 && (a + S_PGSIZE <= newsz) && 0/*&& 0 to test without super pages*/){
       mem = salloc();
       memset(mem, 0, S_PGSIZE);
       if(mem == 0)

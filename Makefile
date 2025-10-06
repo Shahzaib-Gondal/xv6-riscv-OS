@@ -196,6 +196,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_syscall_test\
 	$U/_testmemory\
+	$U/_bigmatmul\
 
 
 
